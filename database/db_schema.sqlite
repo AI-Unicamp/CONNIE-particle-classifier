@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS events (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    filename TEXT,
+    img_idx INTEGER,
+    username TEXT,
+    date TIMESTAMP,
+    label TEXT
+);

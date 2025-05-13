@@ -1,0 +1,17 @@
+ray[tune]
+numpy
+matplotlib
+pandas
+PyQt5
+uproot
+torch
+torchvision
+tensorboard
+torchsummary
+scikit-learn
+seaborn
+opencv-python
+astropy
+scikit-image
+awkward-pandas
+xgboost==1.6.2

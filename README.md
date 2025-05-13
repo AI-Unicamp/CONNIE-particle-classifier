@@ -12,7 +12,7 @@ The main objective is to support the detection and study of **coherent elastic n
 
 ## Features
 
-- 📦 **Event cropping** and preprocessing from Skipper-CCD raw FITS images  
+- 📦 **Event cropping** and preprocessing from Skipper-CCD energy-calibrated FITS images  
 - 🧠 **Convolutional Neural Network (CNN)** classifier (ResNet-18) trained on labeled and augmented event images  
 - 🌲 **Feature-based models** (Random Forest, XGBoost) using event metadata extracted from ROOT catalogs  
 - 🧪 Cross-validation, grid search, and accuracy benchmarking  
@@ -25,6 +25,7 @@ The main objective is to support the detection and study of **coherent elastic n
 
 ```
 ├── data/                # Event images and raw data
+├── database             # Database related files
 ├── models/              # Trained model checkpoints
 ├── scripts/             # Image processing and training scripts
 ├── gui/                 # Annotation GUI tools
@@ -51,7 +52,15 @@ The main objective is to support the detection and study of **coherent elastic n
 ```bash
 git clone https://github.com/yourusername/connie-particle-classifier.git
 cd connie-particle-classifier
-pip install -r requirements.txt
+pip install -r requirements.txt 
+```
+
+You can also create a virtual environment
+```bash
+git clone https://github.com/yourusername/connie-particle-classifier.git
+cd connie-particle-classifier
+create_venv.sh
+source virtualenv/bin/activate
 ```
 
 ---
@@ -67,13 +76,13 @@ python scripts/extract_events.py --input_folder raw_images/ --output_folder data
 ### 2. Train CNN Model
 
 ```bash
-python scripts/train_cnn.py --config configs/resnet18.yaml
+python scripts/train_cnn_credo.py
 ```
 
 ### 3. Launch GUI Labeling Tool
 
 ```bash
-python gui/label_events.py --input_catalog data/catalog_run125.root
+python gui/data_label.py
 ```
 
 ---
@@ -82,7 +91,7 @@ python gui/label_events.py --input_catalog data/catalog_run125.root
 
 - **Raw Data**: Skipper-CCD images in FITS format from CONNIE Run 125  
 - **Labeled Subset**: Annotated events (PNG and ROOT) from Runs 118 and 125  
-- **External**: CREDO dataset used for transfer learning experimentation
+- **External**: [CREDO dataset](https://credo.science) used for transfer learning experimentation
 
 > **Note**: Due to collaboration restrictions, some datasets may not be publicly available.
 
@@ -90,8 +99,8 @@ python gui/label_events.py --input_catalog data/catalog_run125.root
 
 ## Results
 
-- CNN classification accuracy on test set: **~95%**
-- Feature-based classifiers (XGBoost, RF): **~88–89%**
+- CNN classification accuracy on test set (CREDO dataset): **~95%**
+- Feature-based classifiers (XGBoost, RF) with CONNIE dataset: **~88–89%**
 - Manual annotation strategy shows improved reliability using redundancy
 
 ---
@@ -104,14 +113,4 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 
 ## Acknowledgments
 
-Developed as part of research with the [CONNIE Collaboration](http://connieexperiment.org).  
-Special thanks to collaborators from UNICAMP, UFRJ, and associated institutions.
-
----
-
-## Contact
-
-**Sara Mirthis Dantas dos Santos**  
-Dept. of Computer Engineering and Automation (DCA)  
-Universidade Estadual de Campinas (UNICAMP)  
-s224018@dac.unicamp.br
+Developed as part of research with the CONNIE Collaboration.
