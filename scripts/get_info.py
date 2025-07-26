@@ -202,6 +202,10 @@ class RootFileInfo:
             "All events with discrepancies were analyzed or skipped.")
         sys.exit(1)
 
+    def clear_discrepant_events_idx(self):
+        """ Clear discrepant events index """
+        self._discrepant_event_idx = 0
+
     def __get_candidate_indices(self, skip:bool):
         """ Get candidates indices
 

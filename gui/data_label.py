@@ -11,7 +11,7 @@ from scripts.plot import PlotCanvas
 from scripts.database import Database, ImageData
 from scripts.get_info import RootFileInfo, get_username, get_datetime
 from pathlib import Path
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout,\
      QHBoxLayout, QRadioButton, QPushButton, QLabel, QGroupBox, QButtonGroup,\
      QMessageBox, QGridLayout, QAction, QInputDialog, QLineEdit, QTextEdit
@@ -34,8 +34,8 @@ class MainWindow(QMainWindow):
         self.root_file = RootFileInfo()
         self.root_file.open_unlabeled_root_file()
 
-        title_str = "CONNIE Data Label"
-        self.setWindowTitle(title_str)
+        self.title_str = "CONNIE Data Label"
+        self.setWindowTitle(self.title_str + " - Annotation mode")
 
         # Main widget
         main_widget = QWidget(self)
@@ -44,7 +44,7 @@ class MainWindow(QMainWindow):
         self.layout = QGridLayout()
 
         # Title
-        page_title = QLabel(title_str, self)
+        page_title = QLabel(self.title_str, self)
         page_title.setAlignment(Qt.AlignHCenter)
         page_title.setStyleSheet("QLabel"
                                  "{"
@@ -193,13 +193,14 @@ class MainWindow(QMainWindow):
             previous_labels (list[str]): Labels previously
             selected by other users.
         """
-        text_box = QTextEdit()
-        text_box.setReadOnly(True)
-        text_box.setStyleSheet("QTextEdit { font: 14px Arial; }")
-        text_box.setFixedHeight(60)
-        text_box.setText("Previously selected labels:\n- "
+        self.text_box = QTextEdit()
+        self.text_box.setReadOnly(True)
+        self.text_box.setStyleSheet("QTextEdit { font: 14px Arial; }")
+        self.text_box.setFixedSize(350, 80)
+        self.text_box.setText("Previously selected labels:\n- "
                          + "\n- ".join(previous_labels))
-        self.layout.addWidget(text_box, 4, 2)
+        self.layout.addWidget(self.text_box, 4, 0,
+                              alignment=Qt.AlignLeft)
 
     def create_menu(self):
         """ Create menu tab """
@@ -207,9 +208,9 @@ class MainWindow(QMainWindow):
         review_menu = menubar.addMenu("Review")
         help_menu = menubar.addMenu("Help")
 
-        resolve_action = QAction("Resolve Annotation Conflicts", self)
-        resolve_action.triggered.connect(self.enter_review_mode)
-        review_menu.addAction(resolve_action)
+        self.resolve_action = QAction("Resolve Annotation Conflicts", self)
+        self.resolve_action.triggered.connect(self.enter_review_mode)
+        review_menu.addAction(self.resolve_action)
         info_action = QAction("Info", self)
         info_action.triggered.connect(self.show_info)
         help_menu.addAction(info_action)
@@ -322,9 +323,48 @@ class MainWindow(QMainWindow):
         """ Activates review mode to analyze events with discrepancies """
         self.is_review_mode = True
         self.username = REVIEW_USERNAME
-        self.setWindowTitle("CONNIE Data Label - Review Mode")
+        self.resolve_action.setEnabled(False)
+        self.setWindowTitle(self.title_str + " - Review Mode")
+        self.button_exit_review = QPushButton("Exit Review Mode")
+        self.button_exit_review.setStyleSheet("QPushButton { font-size: 10px; }")
+        self.button_exit_review.setFixedSize(100, 20)
+        self.button_exit_review.clicked.connect(self.exit_review_mode)
+        self.layout.addWidget(self.button_exit_review, 0, 0,
+                              alignment=Qt.AlignLeft)
+
         self.get_new_file_information()
         self.update_file_info()
+
+    def exit_review_mode(self):
+        """ Exit review mode and return to annotation mode """
+        confirm = QMessageBox.question(
+            self,
+            "Exit Review Mode",
+            "Are you sure you want to return to annotation mode?",
+            QMessageBox.Yes | QMessageBox.No)
+        if confirm == QMessageBox.Yes:
+            self.is_review_mode = False
+            self.username = get_username()
+            self.root_file.clear_discrepant_events_idx()
+            self.resolve_action.setEnabled(True)
+            if hasattr(self, "text_box"):
+                self.layout.removeWidget(self.text_box)
+                self.text_box.deleteLater()
+                del self.text_box
+
+            if hasattr(self, "button_exit_review"):
+                self.layout.removeWidget(self.button_exit_review)
+                self.button_exit_review.deleteLater()
+                del self.button_exit_review
+
+            self.get_new_file_information()
+            self.update_file_info()
+            self.setWindowTitle(self.title_str + " - Annotation mode")
+            QTimer.singleShot(0, lambda: QMessageBox.information(
+                self,
+                "Annotation Mode",
+                "You have returned to annotation mode."
+            ))
 
     def show_info(self):
         """ Show information about software """
