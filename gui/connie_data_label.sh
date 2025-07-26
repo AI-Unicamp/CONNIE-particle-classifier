@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo -e "Activating virtualenv\n";
-source virtualenv/bin/activate
+source ../virtualenv/bin/activate
 
 python3 data_label.py
 

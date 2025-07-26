@@ -112,7 +112,7 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 ---
 ## Acknowledgments
 
-Developed as part of research with the [CONNIE Collaboration](http://connieexperiment.org).  
+Developed as part of research with the CONNIE Collaboration.  
 Special thanks to collaborators from UNICAMP, UFRJ, and associated institutions.
 
 ---
@@ -120,6 +120,6 @@ Special thanks to collaborators from UNICAMP, UFRJ, and associated institutions.
 ## Contact
 
 **Sara Mirthis Dantas dos Santos**  
-Dept. of Computer Engineering and Automation (DCA)  
+Dept. of Computer Engineering and Automation (DCA)
 Universidade Estadual de Campinas (UNICAMP)  
-s224018@dac.unicamp.br
+s224018@dac.unicamp.br | saramirthis@gmail.com

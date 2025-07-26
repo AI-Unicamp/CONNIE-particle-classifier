@@ -1,25 +1,32 @@
 import sys
 import os
+from typing import List, Optional
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from core import ClassLabel
+from core import ClassLabel, REVIEW_MODE_PASSWORD, REVIEW_USERNAME
 from scripts.plot import PlotCanvas
 from scripts.database import Database, ImageData
 from scripts.get_info import RootFileInfo, get_username, get_datetime
 from pathlib import Path
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout,\
-     QHBoxLayout, QRadioButton, QPushButton, QLabel, QButtonGroup, QGroupBox,\
-     QMessageBox, QGridLayout
-
+     QHBoxLayout, QRadioButton, QPushButton, QLabel, QGroupBox, QButtonGroup,\
+     QMessageBox, QGridLayout, QAction, QInputDialog, QLineEdit, QTextEdit
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        self.create_menu()
+        self.version = "1.0"
+        self.is_review_mode = False
+        self.username = get_username()
+
+        self.license = self.read_license()
 
         self.database = Database()        
         self.database.create_database()
@@ -47,8 +54,25 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(page_title, 0, 0, 1, 4)
 
         self.get_new_file_information()
+        
+        # Plot canvas
+        self.canvas = PlotCanvas(self, self.file_data, self.img_idx)
+        self.layout.addWidget(self.canvas, 1, 0, 3, 3)
 
-        # File information
+        self.file_information()
+        self.event_information()        
+        self.event_classes()
+        self.decision_buttons()
+
+        self.layout.addWidget(self.file_info_group, 1, 3)
+        self.layout.addWidget(self.event_info_group, 2, 3)
+        self.layout.addWidget(self.classes_group, 3, 3)
+        self.layout.addWidget(self.buttons_group, 4, 3)
+        main_widget.setLayout(self.layout)
+        self.show()
+
+    def file_information(self):
+        """ Get file information """
         self.curr_filepath = QLabel(f"Root file path: {self.filepath}")
         self.curr_filepath.setWordWrap(True)
         self.curr_filepath.setStyleSheet("QLabel"
@@ -94,7 +118,8 @@ class MainWindow(QMainWindow):
         self.file_info_layout.addStretch(1)
         self.file_info_group.setLayout(self.file_info_layout)
 
-        # Event information
+    def event_information(self):
+        """ Get event information """
         self.label_pixels_number = QLabel(f"Total number of pixels: {self.pixels_number}")
         self.label_pixels_number.setStyleSheet("QLabel"
                                                "{"
@@ -125,72 +150,74 @@ class MainWindow(QMainWindow):
 
         self.event_info_layout.addStretch(1)
         self.event_info_group.setLayout(self.event_info_layout)
-        
-        # Plot canvas
-        self.canvas = PlotCanvas(self, self.file_data, self.img_idx)
-        self.layout.addWidget(self.canvas, 1, 0, 3, 3)
 
-        
-        # Classes
+    def event_classes(self):
+        """Create label radio buttons for all available classes."""
+        label_definitions = {
+            "Muon": (ClassLabel.Muon, QRadioButton("Muon")),
+            "Electron": (ClassLabel.Electron, QRadioButton("Electron")),
+            "Blob": (ClassLabel.Blob, QRadioButton("Blob")),
+            "Diffusion hit (blob < 600 eV)": (
+                ClassLabel.Diffusion_Hit,
+                QRadioButton("Diffusion hit (blob < 600 eV)")),
+            "Alpha": (ClassLabel.Alpha, QRadioButton("Alpha")),
+            "Others": (ClassLabel.Others, QRadioButton("Others")),
+        }
 
-        self.radio_muon = QRadioButton("Muon")
-        self.radio_muon.setStyleSheet("QRadioButton"
-                                      "{"
-                                      "font : 15px Arial;"
-                                      "}")
-        self.radio_eletron = QRadioButton("Electron")
-        self.radio_eletron.setStyleSheet("QRadioButton"
-                                         "{"
-                                         "font : 15px Arial;"
-                                         "}")
-        self.radio_blob = QRadioButton("Blob")
-        self.radio_blob.setStyleSheet("QRadioButton"
-                                     "{"
-                                     "font : 15px Arial;"
-                                     "}")
-        self.radio_diffusion_hit = QRadioButton("Diffusion hit (blob < 600 eV)")
-        self.radio_diffusion_hit.setStyleSheet("QRadioButton"
-                                               "{"
-                                               "font : 15px Arial;"
-                                               "}")
-        self.radio_alpha = QRadioButton("Alpha")
-        self.radio_alpha.setStyleSheet("QRadioButton"
-                                       "{"
-                                       "font : 15px Arial;"
-                                       "}")
-        self.radio_others = QRadioButton("Others")
-        self.radio_others.setStyleSheet("QRadioButton"
-                                        "{"
-                                        "font : 15px Arial;"
-                                        "}")
-        
+        for _, (_, btn) in label_definitions.items():
+            btn.setStyleSheet("QRadioButton { font: 15px Arial; }")
+
         self.classes_buttom_layout = QButtonGroup()
-        self.classes_buttom_layout.addButton(self.radio_muon,
-                                             id=ClassLabel.Muon.value)
-        self.classes_buttom_layout.addButton(self.radio_eletron,
-                                             id=ClassLabel.Electron.value)
-        self.classes_buttom_layout.addButton(self.radio_blob,
-                                             id=ClassLabel.Blob.value)
-        self.classes_buttom_layout.addButton(self.radio_diffusion_hit,
-                                             id=ClassLabel.Diffusion_Hit.value)
-        self.classes_buttom_layout.addButton(self.radio_alpha,
-                                             id=ClassLabel.Alpha.value)
-        self.classes_buttom_layout.addButton(self.radio_others,
-                                             id=ClassLabel.Others.value)
-        classes_group = QGroupBox("Event classification")
-        classes_layout = QVBoxLayout()
-        classes_layout.addWidget(self.radio_muon)
-        classes_layout.addWidget(self.radio_eletron)
-        classes_layout.addWidget(self.radio_blob)
-        classes_layout.addWidget(self.radio_diffusion_hit)
-        classes_layout.addWidget(self.radio_alpha)
-        classes_layout.addWidget(self.radio_others)
-        classes_layout.addStretch(1)
-        classes_group.setLayout(classes_layout)
-        
-        # Buttons
-        buttons_group = QGroupBox()
-        buttons_group.setStyleSheet("QGroupBox { border: 1px;}")
+        self.classes_group = QGroupBox("Event classification")
+        layout = QVBoxLayout()
+
+        for label_text, (label_enum, radio_button) in label_definitions.items():
+            self.classes_buttom_layout.addButton(radio_button,
+                                                 id=label_enum.value)
+            layout.addWidget(radio_button)
+
+        layout.addStretch(1)
+        self.classes_group.setLayout(layout)
+
+    def clear_class_selection(self):
+        self.classes_buttom_layout.setExclusive(False)
+        checked_button = self.classes_buttom_layout.checkedButton()
+        if checked_button:
+            checked_button.setChecked(False)
+        self.classes_buttom_layout.setExclusive(True)
+
+    def create_previous_labels_box(self, previous_labels: Optional[List[str]] = None):
+        """Create a read-only text box listing previously selected labels.
+
+        Args:
+            previous_labels (list[str]): Labels previously
+            selected by other users.
+        """
+        text_box = QTextEdit()
+        text_box.setReadOnly(True)
+        text_box.setStyleSheet("QTextEdit { font: 14px Arial; }")
+        text_box.setFixedHeight(60)
+        text_box.setText("Previously selected labels:\n- "
+                         + "\n- ".join(previous_labels))
+        self.layout.addWidget(text_box, 4, 2)
+
+    def create_menu(self):
+        """ Create menu tab """
+        menubar = self.menuBar()
+        review_menu = menubar.addMenu("Review")
+        help_menu = menubar.addMenu("Help")
+
+        resolve_action = QAction("Resolve Annotation Conflicts", self)
+        resolve_action.triggered.connect(self.enter_review_mode)
+        review_menu.addAction(resolve_action)
+        info_action = QAction("Info", self)
+        info_action.triggered.connect(self.show_info)
+        help_menu.addAction(info_action)
+
+    def decision_buttons(self):
+        """ Decision buttons """
+        self.buttons_group = QGroupBox()
+        self.buttons_group.setStyleSheet("QGroupBox { border: 1px;}")
 
         buttons_layout = QHBoxLayout()
         self.button_skip = QPushButton("Skip")
@@ -199,14 +226,7 @@ class MainWindow(QMainWindow):
         self.button_skip.clicked.connect(self.skip_image)
         buttons_layout.addWidget(self.button_skip)
         buttons_layout.addWidget(self.button_submit)
-        buttons_group.setLayout(buttons_layout)
-
-        self.layout.addWidget(self.file_info_group, 1, 3)
-        self.layout.addWidget(self.event_info_group, 2, 3)
-        self.layout.addWidget(classes_group, 3, 3)
-        self.layout.addWidget(buttons_group, 4, 3)
-        main_widget.setLayout(self.layout)
-        self.show()
+        self.buttons_group.setLayout(buttons_layout)
 
     def submit_info(self):
         """ Submit buttom """
@@ -218,13 +238,15 @@ class MainWindow(QMainWindow):
                                 "Checkbox cannot be empty")
             self.release_buttons()
             return
+        self.clear_class_selection()
         curr_class = ClassLabel(buttom_id).name.replace("_", " ")
         image_data = ImageData(Path(self.filename).name, self.img_idx,
-                               get_username(), get_datetime(),
+                               self.username, get_datetime(),
                                curr_class)
         print(f"image_data = {image_data}\n")
         self.database.insert_event_info(image_data)
-        self.root_file.remove_idx(self.img_idx)
+        if not self.is_review_mode:
+            self.root_file.remove_idx(self.img_idx)
         self.get_new_file_information()
         self.update_file_info()
         self.release_buttons()
@@ -232,6 +254,7 @@ class MainWindow(QMainWindow):
     def skip_image(self):
         """ Skip buttom """
         self.block_buttons()
+        self.clear_class_selection()
         self.get_new_file_information(skip=True)
         self.update_file_info()
         self.release_buttons()
@@ -250,7 +273,12 @@ class MainWindow(QMainWindow):
 
     def get_new_file_information(self, skip=False):
         """ Get new file information """
-        self.img_idx = self.root_file.get_new_img_idx(skip)
+        if not self.is_review_mode:
+            self.img_idx = self.root_file.get_new_img_idx(skip)
+        else:
+            self.filename, self.img_idx = self.root_file.get_discrepant_event_idx(skip)
+            previous_labels = self.database.get_labels_for_event(self.filename, self.img_idx)
+            self.create_previous_labels_box(previous_labels)
         self.file_data = self.root_file.get_root_file_info()
         self.run_id = str(self.file_data["runID"][self.img_idx])
         self.img_id = str(self.file_data["imgID"][self.img_idx])
@@ -277,6 +305,54 @@ class MainWindow(QMainWindow):
         self.label_x_bary0.setText(f"X-Barycenter 0: {self.x_bary0}")
         self.label_y_bary0.setText(f"Y-Barycenter 0: {self.y_bary0}")
         self.canvas.plot(self.file_data, self.img_idx)
+
+    def enter_review_mode(self):
+        """ Enter review mode """
+        password, ok = QInputDialog.getText(self,
+                                     "Enter Password",
+                                     "Password:",
+                                     echo=QLineEdit.Password)
+        if ok:
+            if password == REVIEW_MODE_PASSWORD:
+                self.activate_review_mode()
+            else:
+                QMessageBox.warning(self, "Access Denied", "Incorrect password.")
+
+    def activate_review_mode(self):
+        """ Activates review mode to analyze events with discrepancies """
+        self.is_review_mode = True
+        self.username = REVIEW_USERNAME
+        self.setWindowTitle("CONNIE Data Label - Review Mode")
+        self.get_new_file_information()
+        self.update_file_info()
+
+    def show_info(self):
+        """ Show information about software """
+        info_text = (
+            f"CONNIE Event Labeling Tool\n"
+            f"Version: {self.version}\n"
+            f"© 2025\n"
+            f"License: {self.license}\n\n"
+            "This interface is designed for labeling events in the CONNIE experiment.\n"
+            "Developed as part of research with the CONNIE Collaboration.\n"
+            "Special thanks to collaborators from UNICAMP, UFRJ, and associated institutions.\n\n"
+            "—\n\n"
+            "Contact:\n"
+            "Sara Mirthis Dantas dos Santos\n"
+            "Dept. of Computer Engineering and Automation (DCA)\n"
+            "Universidade Estadual de Campinas (UNICAMP)\n"
+            "s224018@dac.unicamp.br | saramirthis@gmail.com"
+        )
+
+        QMessageBox.information(self, "About This Tool", info_text)
+
+    def read_license(self):
+        """ Read license """
+        try:
+            with open(os.path.join(ROOT_DIR, "LICENSE"), "r") as f:
+                return f.readline().strip()
+        except Exception:
+            return "Unknown"
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import math
 import os
 import sys
 import uproot
@@ -12,7 +13,7 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from core import CATALOG_FOLDERPATH
+from core import CATALOG_FOLDERPATH, REVIEW_USERNAME
 
 
 class RootFileInfo:
@@ -24,16 +25,22 @@ class RootFileInfo:
         self.count = 0
         self.num_user_relabel = 3
         self.current_filepath = ""
+        self.current_filename = ""
         self.all_root_files = glob(os.path.join(CATALOG_FOLDERPATH, "*.root"))
         self.database = Database()
         self.current_username = get_username()
+        self._discrepant_event_idx = 0
 
     def __get_random_root_file(self):
         """ Get a random root file in the catalog folder"""
         if not self.all_root_files:
             raise Exception(f"There is no root file in the folder {CATALOG_FOLDERPATH}")
-        self.current_filepath = random.choice(self.all_root_files)
-        self.current_filename = Path(self.current_filepath).name
+        new_filepath = random.choice(self.all_root_files)
+        new_filename = Path(new_filepath).name
+        if self.current_filename == new_filename:
+            self.no_more_files()
+        self.current_filepath = new_filepath
+        self.current_filename = new_filename
 
     def open_root_file(self):
         """ Open the root file """
@@ -68,7 +75,8 @@ class RootFileInfo:
 
     def __get_available_idx(self):
         """ Get available indices """
-        curr_file_labeled_events = self.database.search_events(condition=f"filename=\"{self.current_filename}\"")
+        curr_file_labeled_events = self.database.search_events(
+            condition=f"filename=\"{self.current_filename}\"")
         all_idx = list(range(self.total_num_events))
         if len(curr_file_labeled_events) > 0:
             self.available_idx = []
@@ -77,16 +85,15 @@ class RootFileInfo:
             for event in curr_file_labeled_events:
                 label_idx = event[1]
                 username = event[2]
-
-                # Condition 1: If not for relabeling, or the current user already labeled the idx, remove the index
-                if ((label_idx not in self.relabel_idx) or
-                    (username == self.current_username)):
+                # Condition 1: If current user already labeled the idx,
+                # remove the index
+                if username == self.current_username:
                     remove_idx.append(label_idx)
-                # Condition 2: If relabeling and idx already labeled num_user_relabel times, remove the index
+                # Condition 2: If relabeling and idx already labeled 
+                # num_user_relabel times, remove the index
                 elif ((label_idx in self.relabel_idx) and
                       (curr_file_labels.count(label_idx) >= self.num_user_relabel)):
                     remove_idx.append(label_idx)
-
             self.available_idx = [idx for idx in all_idx
                                   if (idx not in remove_idx)]
         else:
@@ -107,7 +114,6 @@ class RootFileInfo:
                 self.__get_new_root_file()
                 keep_searching = True
                 self.count+=1
-
             elif self.count == len(self.all_root_files):
                 self.no_more_files()
             else:
@@ -118,7 +124,7 @@ class RootFileInfo:
         See Annotation Redundancy with Targeted Quality Assurance method
         """
         random.seed(42)
-        percentage = int(self.total_num_events * 0.1)
+        percentage = math.ceil(self.total_num_events * 0.1)
         pseudo_random_idx = random.sample(range(self.total_num_events), percentage)
         random.seed(None)
         return pseudo_random_idx
@@ -131,11 +137,11 @@ class RootFileInfo:
         """ Extracting only the necessary info for the interface """
         info_keys_list = ["xPix","yPix", "ePix", "runID", "imgID", "chid",
                           "skpID", "EventID", "E0", "nSavedPix",
-                          "xBary0", "yBary0", "xMin", "xMax", "yMin", "yMax"]
+                          "xBary0", "yBary0"]
         self.file_data = self.file.arrays(info_keys_list, library="np")
         return self.file_data
     
-    def get_new_img_idx(self, skip:bool = False):
+    def get_new_img_idx(self, skip: bool=False):
         """ Get a new image idx
 
         Args:
@@ -145,14 +151,14 @@ class RootFileInfo:
             int: indice to be labeled
         """
         candidate_indices = self.__get_candidate_indices(skip)
-        if not candidate_indices:
+        if not candidate_indices or (len(candidate_indices) == 1 and skip==True):
             print(f"All events from the file {self.current_filename}"
                   + " are labeled. Searching for new file.\n")
             QMessageBox.information(
                 None,
                 "Information",
                 f"All events from the file {self.current_filename} are labeled."
-                + "\n Searching for new file.")
+                + "\nSearching for new file.")
             self.open_unlabeled_root_file()
             self.get_root_file_info()
             candidate_indices = self.__get_candidate_indices(False)
@@ -160,6 +166,41 @@ class RootFileInfo:
         while not self.__check_idx_is_valid(new_idx):
             new_idx = random.choice(candidate_indices)
         return new_idx
+
+    def get_discrepant_event_idx(self, skip: bool = False):
+        """
+        Get the next event labeled with discrepancies that has not been annotated
+        by the review user.
+
+        Args:
+            skip (bool): If True, skip the current event and return the next one.
+
+        Returns:
+            tuple: (filename, img_idx)
+        """
+        events = list(self.database.get_discrepant_label_votes_by_event().keys())
+
+        while self._discrepant_event_idx < len(events):
+            filename, img_idx = events[self._discrepant_event_idx]
+            annotated = self.database.has_user_annotated_event(filename,
+                                                               img_idx,
+                                                               REVIEW_USERNAME)
+
+            if skip:
+                if not annotated:
+                    self._discrepant_event_idx += 1
+                    return (filename, img_idx)
+            elif not annotated:
+                self._discrepant_event_idx += 1
+                return (filename, img_idx)
+            self._discrepant_event_idx += 1  # Move to next if already annotated
+
+        print("All events with discrepancies were analyzed or skipped.\n")
+        QMessageBox.information(
+            None,
+            "Information",
+            "All events with discrepancies were analyzed or skipped.")
+        sys.exit(1)
 
     def __get_candidate_indices(self, skip:bool):
         """ Get candidates indices
@@ -190,6 +231,12 @@ class RootFileInfo:
             bool: True if the image is valid, False if it is not
         """
         label_status = True
+
+        is_event_reviewed = (
+            self.database.search_events(
+            condition=f"filename=\"{self.current_filename}\" AND img_idx={new_idx}"
+                      + f" AND username =\"{REVIEW_USERNAME}\""))
+
         is_event_labeled = (
             self.database.search_events(
             condition=f"filename=\"{self.current_filename}\" AND img_idx={new_idx}"))
@@ -197,8 +244,10 @@ class RootFileInfo:
         is_event_labeled_same_user = self.database.search_events(
             condition=f"filename=\"{self.current_filename}\" AND "
                       + f"img_idx={new_idx} AND username=\"{self.current_username}\"")
-  
-        if len(is_event_labeled):
+        if is_event_reviewed:
+            self.remove_idx(new_idx)
+            label_status = False
+        elif len(is_event_labeled):
             if (new_idx in self.relabel_idx and
                 len(is_event_labeled) < self.num_user_relabel and
                 len(is_event_labeled_same_user) == 0):
@@ -217,7 +266,8 @@ class RootFileInfo:
         self.available_idx.remove(idx)
         if idx in self.relabel_idx:
             self.relabel_idx.remove(idx)
-    
+
+
 def get_username():
     """ Get current username """
     return os.getlogin()

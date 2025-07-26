@@ -10,6 +10,9 @@ DATA_FOLDER = os.path.join(MAIN_DIR, "data")
 MODELS_FOLDER = os.path.join(MAIN_DIR, "models")
 SCHEMA_FILE = os.path.join(MAIN_DIR, "database", "db_schema.sqlite")
 
+REVIEW_USERNAME = "connie" 
+REVIEW_MODE_PASSWORD = "123"
+
 class ClassLabel(Enum):
     Muon = 1
     Electron = 2

@@ -82,3 +82,76 @@ class Database:
         data_rows = cursor.fetchall()
         connection.close()
         return data_rows
+
+    def get_discrepant_label_votes_by_event(self):
+        """ Returns a dictionary of discrepant events with label votes per event
+        
+        Returns:
+            dict: A dictionary where keys are (filename, img_idx) tuples and
+                  values are lists of (label, count) tuples representing how many
+                  users assigned each label.
+        """
+        cmd = """
+            SELECT 
+                e.filename,
+                e.img_idx,
+                e.label,
+                COUNT(*) AS user_count
+            FROM events e
+            WHERE (e.filename, e.img_idx) IN (
+                SELECT filename, img_idx
+                FROM events
+                GROUP BY filename, img_idx
+                HAVING COUNT(DISTINCT label) > 1
+            )
+            GROUP BY e.filename, e.img_idx, e.label
+            ORDER BY e.filename, e.img_idx, user_count DESC;
+        """
+        connection = sqlite3.connect(self.db_path)
+        cursor = connection.cursor()
+        cursor.execute(cmd)
+        data_rows = cursor.fetchall()
+        connection.close()
+
+        # Group rows by (filename, img_idx)
+        from collections import defaultdict
+        events = defaultdict(list)
+        for filename, img_idx, label, count in data_rows:
+            events[(filename, img_idx)].append((label, count))
+
+        return events
+
+    def has_user_annotated_event(self, filename: str,
+                                 img_idx: int,
+                                 username: str) -> bool:
+        """Check if a given user annotated a specific event
+
+        Args:
+            filename (str): The event's filename
+            img_idx (int): The event's image index
+            username (str): The username to check
+
+        Returns:
+            bool: True if user annotated the event, False otherwise
+        """
+        cmd = """ SELECT 1 FROM events
+                  WHERE filename = ? AND img_idx = ? AND username = ?
+                  LIMIT 1;
+              """
+        connection = sqlite3.connect(self.db_path)
+        cursor = connection.cursor()
+        cursor.execute(cmd, (filename, img_idx, username))
+        data_row = cursor.fetchone()
+        connection.close()
+        return data_row is not None
+
+    def get_labels_for_event(self, filename, img_idx):
+        """Return list of unique labels assigned to a given event."""
+        cmd = """SELECT DISTINCT label FROM events
+                WHERE filename = ? AND img_idx = ?"""
+        connection = sqlite3.connect(self.db_path)
+        cursor = connection.cursor()
+        cursor.execute(cmd, (filename, img_idx))
+        rows = cursor.fetchall()
+        connection.close()
+        return [row[0] for row in rows]
