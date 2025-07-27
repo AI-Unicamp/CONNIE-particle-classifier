@@ -278,7 +278,7 @@ class MainWindow(QMainWindow):
         if not self.is_review_mode:
             self.img_idx = self.root_file.get_new_img_idx(skip)
         else:
-            self.filename, self.img_idx = self.root_file.get_discrepant_event_idx(skip)
+            self.filename, self.img_idx = self.root_file.get_discrepant_event_idx()
             previous_labels = self.database.get_labels_for_event(self.filename, self.img_idx)
             self.create_previous_labels_box(previous_labels)
         self.file_data = self.root_file.get_root_file_info()

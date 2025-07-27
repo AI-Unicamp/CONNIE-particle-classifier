@@ -167,40 +167,53 @@ class RootFileInfo:
             new_idx = random.choice(candidate_indices)
         return new_idx
 
-    def get_discrepant_event_idx(self, skip: bool = False):
+    def get_discrepant_event_idx(self):
         """
         Get the next event labeled with discrepancies that has not been annotated
         by the review user.
-
-        Args:
-            skip (bool): If True, skip the current event and return the next one.
 
         Returns:
             tuple: (filename, img_idx)
         """
         events = list(self.database.get_discrepant_label_votes_by_event().keys())
 
-        while self._discrepant_event_idx < len(events):
+        def check_and_return_if_not_annotated():
+            """ Check if the event was already annotated by the review user.
+            If not, return the filename and img_idx """
             filename, img_idx = events[self._discrepant_event_idx]
             annotated = self.database.has_user_annotated_event(filename,
                                                                img_idx,
                                                                REVIEW_USERNAME)
-
-            if skip:
-                if not annotated:
-                    self._discrepant_event_idx += 1
-                    return (filename, img_idx)
-            elif not annotated:
+            if not annotated:
                 self._discrepant_event_idx += 1
                 return (filename, img_idx)
-            self._discrepant_event_idx += 1  # Move to next if already annotated
+            return None
 
-        print("All events with discrepancies were analyzed or skipped.\n")
+        while self._discrepant_event_idx < len(events):
+            filename_imgidx = check_and_return_if_not_annotated()
+            if filename_imgidx:
+                return filename_imgidx
+            self._discrepant_event_idx += 1
+
+        print("All events with discrepancies were analyzed or skipped." +
+              " Going back to the first event.\n")
         QMessageBox.information(
             None,
             "Information",
-            "All events with discrepancies were analyzed or skipped.")
-        sys.exit(1)
+            "All events with discrepancies were analyzed or skipped." +
+            "\nGoing back to the first event.")
+        # Going back to the first idx with discrepancy
+        self.clear_discrepant_events_idx()
+        filename_imgidx = check_and_return_if_not_annotated()
+        if filename_imgidx:
+            return filename_imgidx
+        else:
+            print("No more events with discrepancy to analyze. Exiting.")
+            QMessageBox.warning(
+                None,
+                "Warning",
+                "No more events with discrepancy to analyze. Exiting.")
+            sys.exit(1)
 
     def clear_discrepant_events_idx(self):
         """ Clear discrepant events index """
