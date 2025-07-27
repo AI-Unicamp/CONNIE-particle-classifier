@@ -1,6 +1,5 @@
 import sys
 import os
-from typing import List, Optional
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT_DIR not in sys.path:
@@ -186,19 +185,21 @@ class MainWindow(QMainWindow):
             checked_button.setChecked(False)
         self.classes_buttom_layout.setExclusive(True)
 
-    def create_previous_labels_box(self, previous_labels: Optional[List[str]] = None):
+    def create_previous_labels_box(self, label_dict: dict):
         """Create a read-only text box listing previously selected labels.
 
         Args:
-            previous_labels (list[str]): Labels previously
+            label_dict (dict): Labels previously
             selected by other users.
         """
         self.text_box = QTextEdit()
         self.text_box.setReadOnly(True)
-        self.text_box.setStyleSheet("QTextEdit { font: 14px Arial; }")
-        self.text_box.setFixedSize(350, 80)
-        self.text_box.setText("Previously selected labels:\n- "
-                         + "\n- ".join(previous_labels))
+        self.text_box.setStyleSheet("QTextEdit { font: 13px Arial; }")
+        self.text_box.setFixedSize(350, 60)
+        box_text = "\n   - " + "\n   - ".join(f"{label} x{count}"
+                                        for label, count in
+                                        label_dict.items())
+        self.text_box.setText("Previously selected labels:" + box_text)
         self.layout.addWidget(self.text_box, 4, 0,
                               alignment=Qt.AlignLeft)
 
@@ -325,13 +326,62 @@ class MainWindow(QMainWindow):
         self.username = REVIEW_USERNAME
         self.resolve_action.setEnabled(False)
         self.setWindowTitle(self.title_str + " - Review Mode")
-        self.button_exit_review = QPushButton("Exit Review Mode")
-        self.button_exit_review.setStyleSheet("QPushButton { font-size: 10px; }")
-        self.button_exit_review.setFixedSize(100, 20)
-        self.button_exit_review.clicked.connect(self.exit_review_mode)
-        self.layout.addWidget(self.button_exit_review, 0, 0,
-                              alignment=Qt.AlignLeft)
 
+        self.button_resolve_majority = QPushButton("Resolve by majority")
+        self.button_resolve_majority.setStyleSheet("QPushButton { font-size: 10px; }")
+        self.button_resolve_majority.setFixedSize(110, 20)
+        self.button_resolve_majority.clicked.connect(self.resolve_by_majority)
+
+        self.button_exit_review = QPushButton("Exit review mode")
+        self.button_exit_review.setStyleSheet("QPushButton { font-size: 10px; }")
+        self.button_exit_review.setFixedSize(110, 20)
+        self.button_exit_review.clicked.connect(self.exit_review_mode)
+        
+        self.button_container = QWidget()
+        vbox = QVBoxLayout(self.button_container)
+        vbox.setContentsMargins(0, 0, 0, 0)
+        vbox.setSpacing(2)
+        vbox.addWidget(self.button_resolve_majority)
+        vbox.addWidget(self.button_exit_review)
+        self.layout.addWidget(self.button_container, 0, 0, alignment=Qt.AlignLeft)
+
+        self.get_new_file_information()
+        self.update_file_info()
+
+    def resolve_by_majority(self):
+        """ Checks for events with label conflicts, and if the
+        majority of users agree on a label, inserts it in the dataset
+        with the review user """
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+
+        try:
+            events = self.database.get_discrepant_label_votes_by_event()
+            resolved_count = 0
+
+            for (filename, img_idx), label_counts in events.items():
+                majority_label = self.root_file.resolve_majority_label(label_counts)
+                if majority_label is not None:
+                    image_data = ImageData(filename, img_idx,
+                                           REVIEW_USERNAME, get_datetime(),
+                                           majority_label)
+                    self.database.insert_event_info(image_data)
+                    resolved_count += 1
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        if resolved_count > 0:
+            QMessageBox.information(
+                self,
+                "Conflicts resolved by majority",
+                f"{resolved_count} event(s) were successfully resolved based on majority vote."
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "No resolvable conflicts",
+                "No events had majority. Need to analyse manually."
+            )
         self.get_new_file_information()
         self.update_file_info()
 
@@ -339,7 +389,7 @@ class MainWindow(QMainWindow):
         """ Exit review mode and return to annotation mode """
         confirm = QMessageBox.question(
             self,
-            "Exit Review Mode",
+            "Exit review mode",
             "Are you sure you want to return to annotation mode?",
             QMessageBox.Yes | QMessageBox.No)
         if confirm == QMessageBox.Yes:
@@ -351,11 +401,9 @@ class MainWindow(QMainWindow):
                 self.layout.removeWidget(self.text_box)
                 self.text_box.deleteLater()
                 del self.text_box
-
-            if hasattr(self, "button_exit_review"):
-                self.layout.removeWidget(self.button_exit_review)
-                self.button_exit_review.deleteLater()
-                del self.button_exit_review
+            self.layout.removeWidget(self.button_container)
+            self.button_container.hide()
+            self.button_container.deleteLater()
 
             self.get_new_file_information()
             self.update_file_info()

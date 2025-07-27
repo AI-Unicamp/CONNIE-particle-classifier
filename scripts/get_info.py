@@ -271,6 +271,21 @@ class RootFileInfo:
         if idx in self.relabel_idx:
             self.relabel_idx.remove(idx)
 
+    def resolve_majority_label(self, label_counts):
+        """ Determines the majority label if (num_user_relabel - 1) users agree on it.
+
+        Args:
+            label_counts (List[Tuple[str, int]]): List of (label, count) tuples.
+
+        Returns:
+            str or None: The resolved label if there's a clear majority, otherwise None.
+        """
+        expected_majority = self.num_user_relabel - 1
+        majority_labels = [label for label, count in label_counts if count == expected_majority]
+        if len(majority_labels) == 1:
+            return majority_labels[0]
+        return None
+
 
 def get_username():
     """ Get current username """

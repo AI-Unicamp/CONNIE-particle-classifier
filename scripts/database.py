@@ -146,12 +146,15 @@ class Database:
         return data_row is not None
 
     def get_labels_for_event(self, filename, img_idx):
-        """Return list of unique labels assigned to a given event."""
-        cmd = """SELECT DISTINCT label FROM events
-                WHERE filename = ? AND img_idx = ?"""
+        """ Return a dictionary with labels and the number of times each label 
+            was assigned to a given (filename, img_idx) pair """
+        cmd = """ SELECT label, COUNT(*) as count
+                  FROM events
+                  WHERE filename = ? AND img_idx = ?
+                  GROUP BY label """
         connection = sqlite3.connect(self.db_path)
         cursor = connection.cursor()
         cursor.execute(cmd, (filename, img_idx))
         rows = cursor.fetchall()
         connection.close()
-        return [row[0] for row in rows]
+        return {label: count for label, count in rows}
