@@ -5,7 +5,9 @@ import uproot
 import pathlib
 import numpy as np
 import pandas as pd
+
 from PIL import Image
+from tqdm import tqdm
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT_DIR not in sys.path:
@@ -140,7 +142,7 @@ def organize_dataset(df, discrepancy_df):
         os.makedirs(os.path.join(OUTPUT_DIR, class_label.name), exist_ok=True)
         os.makedirs(os.path.join(PNG_DIR, class_label.name), exist_ok=True)
 
-    for _, row in df.iterrows():
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Processing"):
         label = row['label'].strip().replace(" ", "_")
         if not is_valid_label(label):
             print(f"[!] Invalid label '{label}' in row {row}")
@@ -156,12 +158,21 @@ def organize_dataset(df, discrepancy_df):
 
         out_name = f"{os.path.splitext(filename)[0]}_idx_{img_idx}.root"
 
-        is_discrepant = ((discrepancy_df['img_idx'] == img_idx) &
-                         (discrepancy_df['filename'] == filename)).any()
+        mask = ((discrepancy_df["img_idx"] == img_idx) &
+                (discrepancy_df["filename"] == filename))
+        
+        is_discrepant = mask.any()
 
         if is_discrepant:
-            save_path = os.path.join(DISCREPANCY_DIR, out_name)
-            png_dir = PNG_DISCREPANCY_DIR
+            subset = discrepancy_df.loc[mask]
+
+            if "connie" in subset["username"].values:
+                connie_label = subset.loc[subset["username"] == "connie", "label"].iloc[0]
+                save_path = os.path.join(OUTPUT_DIR, connie_label, out_name)
+                png_dir = PNG_DIR
+            else:
+                save_path = os.path.join(DISCREPANCY_DIR, out_name)
+                png_dir = PNG_DISCREPANCY_DIR
         else:
             save_path = os.path.join(OUTPUT_DIR, label, out_name)
             png_dir = PNG_DIR
